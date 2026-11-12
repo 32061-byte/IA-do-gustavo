@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IA do gustavo</title>
+<link rel="stylesheet" href="assets/css/index.css">
+</head>
+<body>
+<main>
+  <h1>Máquina do Tempo</h1>
+  <p class="sub">Escolha qualquer ano entre 3100 a.C. e 2026. Se nada foi cadastrado nele, mostramos o evento mais próximo. Também mostramos o que vinha logo antes e o que estava se aproximando.</p>
+
+  <section class="screen" id="screen" aria-label="Painel da máquina">
+    <p class="state" id="state" aria-live="polite"></p>
+    <div>
+      <div class="year" id="year" aria-hidden="true"></div>
+      <p class="dest" id="dest"></p>
+    </div>
+  </section>
+
+  <div class="controls">
+    <input type="range" id="dial" min="0" max="1000" step="1" aria-label="Linha do tempo">
+    <div class="row">
+      <button class="step" id="minus" type="button" aria-label="Um ano antes">−</button>
+      <label class="yr"><span>Ano</span><input id="num" type="number" inputmode="numeric" min="1" max="3100"></label>
+      <select id="era" aria-label="Era"><option value="dc">d.C.</option><option value="ac">a.C.</option></select>
+      <button class="step" id="plus" type="button" aria-label="Um ano depois">+</button>
+    </div>
+    <div class="presets" id="presets" role="group" aria-label="Atalhos de anos"></div>
+  </div>
+
+  <button class="go" id="go" type="button"></button>
+
+  <section class="arrival" id="arrival" aria-live="polite"></section>
+</main>
+
+<script>
+(function(){
+  const NOW = 2026, MIN = -3100, SPAN = NOW - MIN;
+  // [ano, data, título, texto]. Em cada ano, do mais antigo ao mais recente.
+  const E = [
+    [-3100,"c. 3100 a.C.","Unificação do Egito","O Alto e o Baixo Egito se unem sob um único rei, tradicionalmente lembrado como Narmer, e nasce um dos primeiros grandes Estados."],
+    [-2560,"c. 2560 a.C.","A Grande Pirâmide de Gizé","Equipes organizadas de trabalhadores erguem o túmulo do faraó Khufu, que será a construção humana mais alta do mundo por milênios."],
+    [-432,"432 a.C.","Atenas no auge","O Partenon fica pronto na Acrópole e a cidade vive seu auge sob Péricles, entre teatro, filosofia e debates na ágora."],
+    [-323,"junho de 323 a.C.","Morre Alexandre, o Grande","Aos 32 anos, na Babilônia, morre o rei que construiu um império da Grécia até a Índia."],
+    [-44,"15 de março de 44 a.C.","Assassinato de Júlio César","Senadores matam César nos Idos de Março, e a república romana entra em uma nova onda de guerras civis."],
+    [80,"80 d.C.","Inauguração do Coliseu","Roma abre o Coliseu com cem dias de jogos, em uma cidade de aquedutos, termas e talvez um milhão de habitantes."],
+    [476,"476 d.C.","Fim do Império Romano do Ocidente","O último imperador do Ocidente, Rômulo Augústulo, é deposto, e o poder na Itália passa a líderes germânicos."],
+    [1066,"14 de outubro de 1066","Batalha de Hastings","Guilherme, o Conquistador, vence o rei Haroldo e muda a língua, as leis e a nobreza da Inglaterra."],
+    [1215,"15 de junho de 1215","Magna Carta","Barões ingleses obrigam o rei João a assinar um documento que limita o poder real."],
+    [1450,"c. 1450","Prensa de Gutenberg","Em Mainz, Johannes Gutenberg aperfeiçoa a impressão com tipos móveis, e os livros deixam de ser copiados à mão."],
+    [1453,"29 de maio de 1453","Queda de Constantinopla","Tropas otomanas de Mehmed II tomam a capital bizantina e encerram o Império Romano do Oriente."],
+    [1492,"12 de outubro de 1492","Colombo chega ao Caribe","A expedição de Cristóvão Colombo desembarca em uma ilha das Bahamas e inicia um contato duradouro entre Europa e Américas."],
+    [1500,"22 de abril de 1500","Cabral chega ao Brasil","A frota de Pedro Álvares Cabral avista o Monte Pascoal, no litoral da Bahia, e os portugueses desembarcam no dia seguinte."],
+    [1503,"c. 1503","Florença renascentista","Leonardo da Vinci começa a pintar a Mona Lisa enquanto Michelangelo trabalha no Davi, em uma cidade de ateliês e bancos."],
+    [1519,"8 de novembro de 1519","Cortés chega a Tenochtitlan","Os espanhóis entram na capital asteca, construída sobre um lago e ligada à terra por calçadas e canais."],
+    [1789,"14 de julho de 1789","Tomada da Bastilha","Parisienses invadem a fortaleza-prisão, e a Revolução Francesa ganha seu símbolo."],
+    [1822,"7 de setembro de 1822","Independência do Brasil","Às margens do riacho do Ipiranga, Dom Pedro I declara a separação de Portugal."],
+    [1851,"1º de maio de 1851","Grande Exposição de Londres","O Palácio de Cristal, feito de vidro e ferro, reúne máquinas a vapor e invenções de dezenas de países."],
+    [1859,"24 de novembro de 1859","A Origem das Espécies","Charles Darwin publica o livro que apresenta a evolução por seleção natural."],
+    [1888,"13 de maio de 1888","Lei Áurea","A princesa Isabel assina a lei que abole a escravidão no Brasil, o último país das Américas a fazê-lo."],
+    [1914,"28 de julho de 1914","Começa a Primeira Guerra Mundial","Um mês após o assassinato do arquiduque Francisco Ferdinando, a Áustria-Hungria declara guerra à Sérvia."],
+    [1922,"13 a 17 de fevereiro de 1922","Semana de Arte Moderna","O Theatro Municipal de São Paulo recebe poesia, música e pintura que rompem com o academicismo."],
+    [1929,"24 a 29 de outubro de 1929","Quebra da Bolsa de Nova York","As ações despencam e abrem caminho para a Grande Depressão."],
+    [1939,"1º de setembro de 1939","Começa a Segunda Guerra Mundial","A Alemanha invade a Polônia, e Reino Unido e França declaram guerra dois dias depois."],
+    [1945,"2 de setembro de 1945","Fim da Segunda Guerra Mundial","O Japão assina a rendição a bordo do USS Missouri, meses depois da capitulação alemã."],
+    [1961,"12 de abril de 1961","Primeiro humano no espaço","O soviético Yuri Gagarin dá uma volta na Terra a bordo da Vostok 1, em 108 minutos."],
+    [1969,"20 de julho de 1969","Pouso na Lua","Neil Armstrong e Buzz Aldrin caminham no Mar da Tranquilidade, enquanto centenas de milhões assistem pela televisão."],
+    [1989,"9 de novembro de 1989","Queda do Muro de Berlim","As fronteiras entre Berlim Oriental e Ocidental se abrem, e a Guerra Fria caminha para o fim."],
+    [1991,"26 de dezembro de 1991","Fim da União Soviética","O Soviete Supremo reconhece a dissolução da URSS, e 15 países independentes surgem."],
+    [1994,"10 de maio de 1994","Mandela toma posse","Nelson Mandela se torna o primeiro presidente negro da África do Sul, após as primeiras eleições multirraciais."],
+    [1994,"17 de julho de 1994","Brasil tetracampeão","Nos Estados Unidos, a seleção vence a Itália nos pênaltis e conquista o quarto título mundial."],
+    [2001,"11 de setembro de 2001","Ataques de 11 de setembro","Aviões sequestrados atingem as Torres Gêmeas e o Pentágono, e a segurança global muda de patamar."],
+    [2008,"15 de setembro de 2008","Quebra do Lehman Brothers","O banco americano pede falência e a crise financeira se espalha pelo mundo."],
+    [2011,"11 de março de 2011","Terremoto e tsunami no Japão","Um terremoto de magnitude 9 gera um tsunami devastador e o acidente nuclear de Fukushima."],
+    [2012,"4 de julho de 2012","Bóson de Higgs","Cientistas do CERN anunciam a descoberta de uma partícula compatível com o bóson de Higgs."],
+    [2014,"13 de julho de 2014","Copa do Mundo no Brasil","A Alemanha vence a Argentina por 1 a 0 na final, no Maracanã, depois de golear o Brasil por 7 a 1 na semifinal."],
+    [2016,"5 a 21 de agosto de 2016","Olimpíadas do Rio","Pela primeira vez, os Jogos Olímpicos acontecem na América do Sul."],
+    [2019,"10 de abril de 2019","Primeira imagem de um buraco negro","O Event Horizon Telescope divulga a imagem da sombra do buraco negro da galáxia M87."],
+    [2020,"11 de março de 2020","OMS declara a pandemia de covid-19","A Organização Mundial da Saúde classifica a covid-19 como pandemia, e países fecham fronteiras e escolas."],
+    [2021,"25 de dezembro de 2021","Lançamento do telescópio James Webb","O maior telescópio espacial já construído parte da Guiana Francesa para observar o universo em infravermelho."],
+    [2022,"24 de fevereiro de 2022","Rússia invade a Ucrânia","A invasão em larga escala inicia a maior guerra na Europa desde a Segunda Guerra Mundial."],
+    [2022,"18 de dezembro de 2022","Argentina campeã no Catar","Depois de um 3 a 3 com a França, a Argentina de Messi vence nos pênaltis e conquista a Copa."],
+    [2023,"23 de agosto de 2023","Chandrayaan-3 pousa na Lua","A Índia se torna o primeiro país a pousar uma sonda perto do polo sul lunar."],
+    [2023,"7 de outubro de 2023","Ataque do Hamas a Israel","O ataque no sul de Israel dá início à guerra em Gaza."],
+    [2024,"26 de julho a 11 de agosto de 2024","Olimpíadas de Paris","A abertura acontece no rio Sena, e Paris recebe os Jogos pela terceira vez."],
+    [2024,"8 de dezembro de 2024","Queda de Bashar al-Assad","Forças rebeldes tomam Damasco, e o presidente sírio deixa o país após 24 anos no poder."],
+    [2025,"21 de abril de 2025","Morre o Papa Francisco","O primeiro papa latino-americano morre aos 88 anos, no Vaticano."],
+    [2025,"8 de maio de 2025","Leão XIV é eleito papa","O cardeal Robert Prevost, de Chicago, se torna o primeiro papa nascido nos Estados Unidos."],
+    [2025,"outubro de 2025","Cessar-fogo em Gaza","Um acordo de cessar-fogo entra em vigor após dois anos de guerra, embora a trégua siga frágil."],
+    [2026,"28 de fevereiro de 2026","Ataques dos EUA e de Israel ao Irã","Os ataques dão início a uma guerra no Oriente Médio e matam o líder supremo iraniano, Ali Khamenei."],
+    [2026,"1 a 10 de abril de 2026","Artemis II volta à Lua","Quatro astronautas contornam a Lua em 10 dias, na primeira missão tripulada além da órbita da Terra desde 1972."],
+    [2026,"17 de maio de 2026","OMS declara emergência por ebola","Um surto na República Democrática do Congo e em Uganda leva a OMS a declarar emergência de saúde pública."],
+    [2026,"19 de julho de 2026","Espanha campeã da Copa do Mundo","Na primeira Copa com 48 seleções, sediada por EUA, Canadá e México, a Espanha vence a Argentina por 1 a 0 na prorrogação."],
+    [2026,"3 de novembro de 2026","Eleições de meio de mandato nos EUA","Os americanos votam para renovar toda a Câmara dos Representantes e parte do Senado."],
+    [2026,"7 de novembro de 2026","Papa Leão XIV viaja à América do Sul","O papa começa uma visita à região pelo Uruguai, com passagem pelo Peru."]
+  ];
+
+  const $ = id => document.getElementById(id);
+  const screenEl = $("screen"), stateEl = $("state"), yearEl = $("year"), destEl = $("dest"),
+        dial = $("dial"), num = $("num"), eraSel = $("era"), goEl = $("go"), arrEl = $("arrival"), presetsEl = $("presets");
+  const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let cur = NOW, sel = NOW, busy = false;
+
+  const fmt = y => y < 0 ? (-y) + " a.C." : (y < 1000 ? y + " d.C." : String(y));
+  const clamp = y => Math.max(MIN, Math.min(NOW, y === 0 ? 1 : y));
+  const toS = y => Math.round(1000 * (1 - Math.cbrt((NOW - y) / SPAN)));
+  const fromS = s => clamp(Math.round(NOW - SPAN * Math.pow(1 - s / 1000, 3)));
+  const dist = y => {
+    const d = y < 0 ? NOW - y - 1 : NOW - y;
+    return d > 0 ? d.toLocaleString("pt-BR") + (d === 1 ? " ano" : " anos") + " no passado" : "";
+  };
+
+  function setYear(v){
+    const y = v === 0 ? 1 : v, s = y < 0 ? "a.C." : (y < 1000 ? "d.C." : "");
+    yearEl.innerHTML = Math.abs(y) + (s ? "<small>" + s + "</small>" : "");
+  }
+
+  function sync(){
+    dial.value = toS(sel);
+    num.value = Math.abs(sel);
+    eraSel.value = sel < 0 ? "ac" : "dc";
+  }
+
+  function render(){
+    [dial, num, eraSel, $("minus"), $("plus")].forEach(c => c.disabled = busy);
+    presetsEl.querySelectorAll("button").forEach(b => {
+      b.disabled = busy;
+      b.setAttribute("aria-pressed", String(+b.dataset.y === sel));
+    });
+    goEl.disabled = busy || sel === cur;
+    goEl.textContent = busy ? "Viajando…" : (sel === cur ? "Você já está em " + fmt(cur) : "Viajar para " + fmt(sel));
+  }
+
+  function idle(){
+    setYear(sel);
+    stateEl.textContent = sel === cur ? "Você está aqui" : "Destino";
+    destEl.textContent = sel === cur ? "" : dist(sel);
+    render();
+  }
+
+  function setSel(y){ sel = clamp(y); sync(); idle(); }
+  function step(d){ let n = sel + d; if (n === 0) n = d > 0 ? 1 : -1; setSel(n); }
+
+  const gap = (a, b) => Math.abs(a - b) - ((a < 0) !== (b < 0) ? 1 : 0);
+  const yrs = n => n + (n === 1 ? " ano" : " anos");
+
+  function nearby(Y, shown){
+    let prev = null, next = null;
+    E.forEach(e => {
+      if (e[0] < Y && (!prev || e[0] >= prev[0])) prev = e;
+      if (e[0] > Y && (!next || e[0] < next[0])) next = e;
+    });
+    const row = (e, cls, label, when) =>
+      "<button type=\"button\" class=\"" + cls + "\" data-y=\"" + e[0] + "\"><b>" + label + "</b><strong>" + e[2] +
+      "</strong><small>" + fmt(e[0]) + " · " + when + "</small></button>";
+    let html = "";
+    if (next && next[0] !== shown) html += row(next, "soon", "Se aproximando", "daqui a " + yrs(gap(next[0], Y)));
+    if (prev && prev[0] !== shown) html += row(prev, "", "Logo antes", yrs(gap(prev[0], Y)) + " antes");
+    return html ? "<div class=\"near\"><h3>Por perto na linha do tempo</h3><p class=\"hint\">Toque para escolher o ano.</p>" + html + "</div>" : "";
+  }
+
+  function show(Y, head){
+    let ex = E.filter(e => e[0] === Y), note = "";
+    if (!ex.length){
+      let best = Infinity, by;
+      E.forEach(e => {
+        const d = gap(e[0], Y);
+        if (d < best || (d === best && e[0] < by)){ best = d; by = e[0]; }
+      });
+      ex = E.filter(e => e[0] === by);
+      note = "Nada cadastrado em " + fmt(Y) + ". O evento mais próximo aconteceu " + best +
+             (best === 1 ? " ano " : " anos ") + (by < Y ? "antes" : "depois") + ", em " + fmt(by) + ".";
+    }
+    const d = dist(Y);
+    arrEl.innerHTML = "<h2>" + head + "</h2>" + (d ? "<p class=\"dist\">" + d + "</p>" : "") +
+      (note ? "<p class=\"note\">" + note + "</p>" : "") +
+      ex.slice().reverse().slice(0, 6).map(e =>
+        "<article><h3>" + e[2] + "</h3><p class=\"when\">" + e[1] + "</p><p>" + e[3] + "</p></article>").join("") + nearby(Y, ex[0][0]);
+  }
+
+  function travel(){
+    if (busy || sel === cur) return;
+    const from = cur, to = sel;
+    busy = true;
+    screenEl.classList.add("travel");
+    stateEl.textContent = "Viajando…";
+    destEl.textContent = fmt(from) + " → " + fmt(to);
+    render();
+    const diff = Math.abs(to - from);
+    const dur = reduce ? 500 : Math.min(4200, 1800 + diff * 0.6);
+    const t0 = performance.now();
+    function tick(t){
+      const p = Math.min(1, (t - t0) / dur);
+      const k = p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+      setYear(Math.round(from + (to - from) * k));
+      if (p < 1) requestAnimationFrame(tick); else arrive(to);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function arrive(Y){
+    cur = Y; busy = false;
+    screenEl.classList.remove("travel");
+    setYear(Y);
+    stateEl.textContent = "Você chegou";
+    destEl.textContent = dist(Y);
+    show(Y, Y === NOW ? "De volta ao presente, em " + fmt(Y) : "Você chegou em " + fmt(Y));
+    render();
+  }
+
+  [-2560, -432, -44, 80, 1500, 1789, 1969, 2001, 2026].forEach(y => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.dataset.y = y;
+    b.textContent = y === NOW ? "Hoje" : fmt(y);
+    b.addEventListener("click", () => setSel(y));
+    presetsEl.appendChild(b);
+  });
+
+  dial.addEventListener("input", () => {
+    sel = fromS(+dial.value);
+    num.value = Math.abs(sel);
+    eraSel.value = sel < 0 ? "ac" : "dc";
+    idle();
+  });
+  function readNum(){
+    const n = parseInt(num.value, 10);
+    if (!n || n < 1) return;
+    sel = clamp(eraSel.value === "ac" ? -n : n);
+    dial.value = toS(sel);
+    idle();
+  }
+  num.addEventListener("input", readNum);
+  num.addEventListener("change", () => { readNum(); sync(); });
+  eraSel.addEventListener("change", () => { readNum(); sync(); });
+  $("minus").addEventListener("click", () => step(-1));
+  $("plus").addEventListener("click", () => step(1));
+  goEl.addEventListener("click", travel);
+  arrEl.addEventListener("click", ev => {
+    const b = ev.target.closest && ev.target.closest("button[data-y]");
+    if (!b || busy) return;
+    setSel(+b.dataset.y);
+    window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+  });
+
+  sync();
+  idle();
+  show(NOW, "Você está em " + NOW);
+})();
+</script>
+</body>
+</html>
